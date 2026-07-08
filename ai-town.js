@@ -16,10 +16,11 @@ const WATER_TILES = new Set([
   953, 954, 955, 956,                    // 水边
 ]);
 
-// ===== 桥的位置（左河最窄处 y=6, x=8-13，水平桥） =====
-const BRIDGE = { y: 6, xMin: 8, xMax: 13 };
-// ===== 右河桥（y=12, x=42-51） =====
-const BRIDGE2 = { y: 12, xMin: 42, xMax: 51 };
+// ===== 桥的位置（y=8 是两条河最宽最中心的位置） =====
+// 左河桥：y=8, x=6-14（9格水体全覆盖）
+const BRIDGE = { y: 8, xMin: 6, xMax: 14 };
+// 右河桥：y=8, x=41-50（10格水体全覆盖）
+const BRIDGE2 = { y: 8, xMin: 41, xMax: 50 };
 
 // ===== 精灵帧定义（精确复制自原版 spritesheets） =====
 const SPRITE_DATA = {
