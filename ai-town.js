@@ -9,18 +9,9 @@
 // ===== 原版地图数据 =====
 import { bgtiles, objmap, tiledim, tilesetpxw, tilesetpxh, mapwidth, mapheight } from './gentle-map.js';
 
-// ===== 水体 tile 索引集合 =====
-const WATER_TILES = new Set([
-  962, 957, 958, 959, 960, 961, 963,  // 左河
-  1007, 1010, 1055,                      // 右河/池塘
-  953, 954, 955, 956,                    // 水边
-]);
-
-// ===== 桥的位置（y=8 是两条河最宽最中心的位置） =====
-// 左河桥：y=8, x=6-14（9格水体全覆盖）
-const BRIDGE = { y: 8, xMin: 6, xMax: 14 };
-// 右河桥：y=8, x=41-50（10格水体全覆盖）
-const BRIDGE2 = { y: 8, xMin: 41, xMax: 50 };
+// ===== 中心湖定义（地图中心位置的椭圆水域） =====
+// 地图 64x48，中心 (32, 24)，湖半径约 5x4 格
+const LAKE = { cx: 32, cy: 24, rx: 5, ry: 4 };
 
 // ===== 精灵帧定义（精确复制自原版 spritesheets） =====
 const SPRITE_DATA = {
@@ -335,10 +326,10 @@ class AITown {
     // 构建碰撞地图
     this.buildCollisionMap();
 
-    // 创建 6 个角色 —— 全部在已验证的可行走位置
+    // 创建 6 个角色 —— 避开中心湖区域
     const positions = [
-      { x: 20, y: 30 }, { x: 30, y: 25 }, { x: 25, y: 35 },
-      { x: 38, y: 30 }, { x: 55, y: 25 }, { x: 35, y: 42 },
+      { x: 20, y: 18 }, { x: 45, y: 18 }, { x: 15, y: 35 },
+      { x: 48, y: 35 }, { x: 28, y: 40 }, { x: 42, y: 12 },
     ];
     this.npcs = CHARACTERS.map((char, i) => {
       const pos = positions[i];
@@ -383,23 +374,20 @@ class AITown {
         for (const layer of this.objTiles) {
           if (layer[x] && layer[x][y] !== -1 && layer[x][y] !== undefined) { blocked = true; break; }
         }
-        // 检查水 tile
-        if (!blocked) {
-          for (const layer of this.bgTiles) {
-            if (WATER_TILES.has(layer[x]?.[y])) { blocked = true; break; }
-          }
-        }
         this.collisionMap[x][y] = blocked;
       }
     }
 
-    // 桥1位置设为可行走（左河，水平桥）
-    for (let x = BRIDGE.xMin; x <= BRIDGE.xMax; x++) {
-      if (this.collisionMap[x]) this.collisionMap[x][BRIDGE.y] = false;
-    }
-    // 桥2位置设为可行走（右河，水平桥）
-    for (let x = BRIDGE2.xMin; x <= BRIDGE2.xMax; x++) {
-      if (this.collisionMap[x]) this.collisionMap[x][BRIDGE2.y] = false;
+    // 中心湖区域设为不可行走
+    for (let x = LAKE.cx - LAKE.rx; x <= LAKE.cx + LAKE.rx; x++) {
+      for (let y = LAKE.cy - LAKE.ry; y <= LAKE.cy + LAKE.ry; y++) {
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const dx = (x - LAKE.cx) / LAKE.rx;
+        const dy = (y - LAKE.cy) / LAKE.ry;
+        if (dx * dx + dy * dy <= 1) {
+          this.collisionMap[x][y] = true;
+        }
+      }
     }
   }
 
@@ -685,17 +673,13 @@ class AITown {
       }
     }
 
-    // 再画对象层，但跳过桥位置（避免桥下面有帐篷/装饰物）
-    const isBridgeTile = (x, y) =>
-      (y === BRIDGE.y && x >= BRIDGE.xMin && x <= BRIDGE.xMax) ||
-      (y === BRIDGE2.y && x >= BRIDGE2.xMin && x <= BRIDGE2.xMax);
+    // 再画对象层
     for (const layer of this.objTiles) {
       if (!layer) continue;
       for (let x = 0; x < layer.length; x++) {
         const col = layer[x];
         if (!col) continue;
         for (let y = 0; y < col.length; y++) {
-          if (isBridgeTile(x, y)) continue; // 桥位置不画对象层
           const tileIdx = col[y];
           if (tileIdx === -1 || tileIdx === undefined || tileIdx === null) continue;
           const sx = (tileIdx % this.numTilesX) * ts;
@@ -705,30 +689,31 @@ class AITown {
       }
     }
 
-    // ===== 4. 在所有水体 tile 上覆盖蓝色水面（让河流清晰可见） =====
-    // 水体 tile 962 等的中心像素是绿色（水边过渡），不覆盖则看不出是河
-    for (let x = 0; x < this.mapCols; x++) {
-      for (let y = 0; y < this.mapRows; y++) {
-        let isWater = false;
-        for (const layer of this.bgTiles) {
-          if (WATER_TILES.has(layer[x]?.[y])) { isWater = true; break; }
-        }
-        if (!isWater) continue;
-        // 深水底色
-        mctx.fillStyle = '#1a3e54';
-        mctx.fillRect(mapOffX + x * ts, mapOffY + y * ts, ts, ts);
-        // 浅水高光
-        mctx.fillStyle = 'rgba(40,90,120,0.45)';
-        mctx.fillRect(mapOffX + x * ts + 3, mapOffY + y * ts + 3, ts - 6, ts - 6);
-        // 水面波纹
-        mctx.strokeStyle = 'rgba(80,140,170,0.3)';
-        mctx.lineWidth = 1;
-        mctx.beginPath();
-        mctx.moveTo(mapOffX + x * ts + 6, mapOffY + y * ts + ts * 0.4);
-        mctx.lineTo(mapOffX + x * ts + ts - 6, mapOffY + y * ts + ts * 0.4);
-        mctx.stroke();
-      }
-    }
+    // ===== 4. 在中心画湖 =====
+    const lakeCx = mapOffX + LAKE.cx * ts;
+    const lakeCy = mapOffY + LAKE.cy * ts;
+    const lakeRx = LAKE.rx * ts;
+    const lakeRy = LAKE.ry * ts;
+    // 石岸
+    mctx.fillStyle = '#6a6a5a';
+    mctx.beginPath();
+    mctx.ellipse(lakeCx, lakeCy, lakeRx + 6, lakeRy + 6, 0, 0, Math.PI * 2);
+    mctx.fill();
+    // 深水
+    mctx.fillStyle = '#1a3e54';
+    mctx.beginPath();
+    mctx.ellipse(lakeCx, lakeCy, lakeRx, lakeRy, 0, 0, Math.PI * 2);
+    mctx.fill();
+    // 浅水
+    mctx.fillStyle = '#2a6888';
+    mctx.beginPath();
+    mctx.ellipse(lakeCx, lakeCy, lakeRx * 0.8, lakeRy * 0.8, 0, 0, Math.PI * 2);
+    mctx.fill();
+    // 水面反光
+    mctx.fillStyle = 'rgba(120,180,220,0.35)';
+    mctx.beginPath();
+    mctx.ellipse(lakeCx - lakeRx * 0.2, lakeCy - lakeRy * 0.2, lakeRx * 0.3, lakeRy * 0.15, 0, 0, Math.PI * 2);
+    mctx.fill();
   }
 
   start() {
@@ -990,10 +975,7 @@ class AITown {
     }
     this.computeVisibleBounds(scale, offX, offY);
 
-    // 2. 桥梁（每帧绘制，确保清晰可见）
-    this.drawBridges(scale, offX, offY);
-
-    // 3. 萤火虫
+    // 2. 萤火虫
     this.particles.forEach(p => {
       const alpha = 0.3 + 0.4 * Math.sin(p.phase);
       ctx.fillStyle = `rgba(255, 230, 100, ${alpha})`;
@@ -1002,66 +984,14 @@ class AITown {
       ctx.fill();
     });
 
-    // 4. 角色
+    // 3. 角色
     this.npcs.forEach(npc => this.drawNpc(npc, scale, offX, offY));
 
-    // 5. 对话气泡
+    // 4. 对话气泡
     this.bubbles.forEach(bubble => this.drawBubble(bubble, scale, offX, offY));
 
-    // 6. UI
+    // 5. UI
     this.drawUI();
-  }
-
-  // ===== 每帧绘制桥梁（不依赖预渲染缩放，确保清晰） =====
-  drawBridges(scale, offX, offY) {
-    const ctx = this.ctx, ts = this.tileDim;
-    const drawBridge = (bridge) => {
-      const by = bridge.y;
-      const pxStart = bridge.xMin * ts * scale + offX;
-      const pxEnd = (bridge.xMax + 1) * ts * scale + offX;
-      const py = by * ts * scale + offY;
-      const py2 = (by + 1) * ts * scale + offY;
-      const bridgeW = pxEnd - pxStart;
-      const bridgeH = py2 - py;
-
-      // 桥底色（深木色）
-      ctx.fillStyle = '#6B4226';
-      ctx.fillRect(pxStart, py, bridgeW, bridgeH);
-
-      // 木板面
-      for (let x = bridge.xMin; x <= bridge.xMax; x++) {
-        const bx = x * ts * scale + offX;
-        const bw = ts * scale;
-        ctx.fillStyle = '#A0826D';
-        ctx.fillRect(bx + 1, py + 2, bw - 2, bridgeH - 4);
-        // 木板缝隙
-        ctx.fillStyle = '#6B4226';
-        ctx.fillRect(bx + bw - 2, py + 2, 2, bridgeH - 4);
-        // 木纹
-        ctx.strokeStyle = '#8B6B4A';
-        ctx.lineWidth = Math.max(1, scale * 1.5);
-        ctx.beginPath();
-        ctx.moveTo(bx + 3, py + bridgeH * 0.3);
-        ctx.lineTo(bx + bw - 3, py + bridgeH * 0.3);
-        ctx.moveTo(bx + 3, py + bridgeH * 0.65);
-        ctx.lineTo(bx + bw - 3, py + bridgeH * 0.65);
-        ctx.stroke();
-      }
-
-      // 桥栏杆（上下两侧）
-      const railH = Math.max(3, bridgeH * 0.15);
-      ctx.fillStyle = '#5C3317';
-      ctx.fillRect(pxStart, py - railH, bridgeW, railH);         // 上栏杆
-      ctx.fillRect(pxStart, py2, bridgeW, railH);                 // 下栏杆
-      // 栏杆柱
-      for (let x = bridge.xMin; x <= bridge.xMax + 1; x += 2) {
-        const px = x * ts * scale + offX;
-        ctx.fillRect(px - 1.5, py - railH * 1.8, 3, railH * 1.8);
-        ctx.fillRect(px - 1.5, py2, 3, railH * 1.8);
-      }
-    };
-    drawBridge(BRIDGE);
-    drawBridge(BRIDGE2);
   }
 
   drawNpc(npc, scale, offX, offY) {
