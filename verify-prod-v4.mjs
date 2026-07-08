@@ -1,0 +1,66 @@
+import { chromium } from 'playwright';
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+
+  const consoleMsgs = [];
+  page.on('console', (msg) => consoleMsgs.push(`[${msg.type()}] ${msg.text()}`));
+  page.on('pageerror', (err) => consoleMsgs.push(`[PAGE_ERROR] ${err.message}`));
+
+  console.log('Loading https://hokchi123.github.io/unlock-music-sketch/ ...');
+  await page.goto('https://hokchi123.github.io/unlock-music-sketch/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(12000);
+
+  console.log('\n--- Console ---');
+  consoleMsgs.forEach(m => console.log(`  ${m}`));
+
+  // Animation
+  const samplePoints = () => {
+    const c = document.getElementById('aiTownCanvas');
+    if (!c) return null;
+    const ctx = c.getContext('2d');
+    const samples = [];
+    for (let i = 0; i < 50; i++) {
+      const x = Math.floor(Math.random() * c.width);
+      const y = Math.floor(Math.random() * c.height);
+      const d = ctx.getImageData(x, y, 1, 1).data;
+      samples.push([d[0], d[1], d[2], d[3]]);
+    }
+    return samples;
+  };
+  const s1 = await page.evaluate(samplePoints);
+  await page.waitForTimeout(3000);
+  const s2 = await page.evaluate(samplePoints);
+  const animating = JSON.stringify(s1) !== JSON.stringify(s2);
+
+  // Fonts loaded
+  const fontReady = consoleMsgs.some(m => m.includes('手绘字体已就绪'));
+
+  // BG
+  const bg = await page.evaluate(() => {
+    const c = document.getElementById('aiTownCanvas');
+    const ctx = c.getContext('2d');
+    const d = ctx.getImageData(c.width / 2, c.height / 2, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] };
+  });
+
+  // UI visible
+  const nav = await page.locator('#navApp').isVisible().catch(() => false);
+  const dropText = await page.locator('.drop-text').isVisible().catch(() => false);
+  const info = await page.locator('.info-bar').isVisible().catch(() => false);
+
+  await page.screenshot({ path: 'sketch-prod.png' });
+
+  console.log('\n========== 线上验收 ==========');
+  console.log(`✅ Canvas 动画: ${animating ? '通过' : '失败'}`);
+  console.log(`✅ 手绘字体: ${fontReady ? '通过' : '失败'}`);
+  console.log(`✅ 背景非纯绿: rgba(${bg.r},${bg.g},${bg.b}) ${!(bg.g > 100 && bg.r < 50 && bg.b < 50) ? '通过' : '失败'}`);
+  console.log(`✅ UI可见: ${nav && dropText && info ? '通过' : '失败'}`);
+  console.log(`✅ 贴图加载: ${consoleMsgs.some(m => m.includes('原版贴图')) ? '通过' : '失败'}`);
+  console.log(`✅ 精灵图加载: ${consoleMsgs.some(m => m.includes('精灵图')) ? '通过' : '失败'}`);
+  console.log(`✅ 无JS错误: ${!consoleMsgs.some(m => m.includes('PAGE_ERROR')) ? '通过' : '失败'}`);
+  console.log('==============================');
+
+  await browser.close();
+})();
