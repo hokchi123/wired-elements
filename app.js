@@ -323,9 +323,50 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     // 创建 AI 小镇实例
-    const aiTown = new AITown(canvas, { seed: 42, opacity: 0.88, npcScale: 1.5 });
+    const aiTown = new AITown(canvas, { seed: 42, opacity: 0.95, npcScale: 1.5 });
     aiTown.loadSprite(spriteImg);
     window.aiTown = aiTown; // 暴露到 window 便于调试
+
+    // ===== 左键拖动平移视角 =====
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    let dragStartPanX = 0, dragStartPanY = 0;
+    const interactiveTags = new Set(['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'A', 'WIRED-BUTTON', 'WIRED-INPUT', 'WIRED-CHECKBOX', 'WIRED-TOGGLE', 'WIRED-COMBO', 'WIRED-SLIDER', 'WIRED-TAB', 'WIRED-TABS', 'WIRED-LISTBOX', 'WIRED-DIALOG', 'WIRED-TEXTAREA', 'WIRED-SEARCH-INPUT', 'WIRED-RADIO', 'WIRED-RADIO-GROUP', 'WIRED-ICON-BUTTON', 'WIRED-FAB']);
+
+    const isInteractive = (el) => {
+      if (!el) return false;
+      if (interactiveTags.has(el.tagName)) return true;
+      if (el.closest && el.closest('[role="button"], button, input, select, textarea, a[href]')) return true;
+      return false;
+    };
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // 只响应左键
+      if (isInteractive(e.target)) return;
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragStartPanX = aiTown.panX;
+      dragStartPanY = aiTown.panY;
+      document.body.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      aiTown.panX = dragStartPanX + (e.clientX - dragStartX);
+      aiTown.panY = dragStartPanY + (e.clientY - dragStartY);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        document.body.style.cursor = '';
+      }
+    });
+
+    // 阻止拖动时选中文本
+    document.addEventListener('dragstart', (e) => { if (isDragging) e.preventDefault(); });
 
     // 等待手绘字体加载完成后启动，确保 Canvas 文字正确渲染
     const startTown = () => aiTown.start();

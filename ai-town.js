@@ -300,7 +300,11 @@ class AITown {
     this.numTilesY = Math.floor(this.tileSetPxH / this.tileDim);
 
     this.npcScale = options.npcScale || 1.5;
-    this.bgOpacity = options.opacity || 0.55;
+    this.bgOpacity = options.opacity || 0.95;
+
+    // 相机平移（左键拖动）
+    this.panX = 0;
+    this.panY = 0;
 
     this.npcs = [];
     this.memories = {};
@@ -455,50 +459,6 @@ class AITown {
       }
     }
 
-    // ===== 绘制木板桥（水平方向，横跨河流） =====
-    const drawBridge = (bridge) => {
-      const by = bridge.y;
-      const pxStart = bridge.xMin * ts;
-      const pxEnd = (bridge.xMax + 1) * ts;
-      const py = by * ts;
-      const bridgeW = pxEnd - pxStart;
-
-      // 桥底色（深木色）
-      mctx.fillStyle = '#6B4226';
-      mctx.fillRect(pxStart, py, bridgeW, ts);
-
-      // 木板（每块 16px 宽，横向铺设）
-      for (let x = bridge.xMin; x <= bridge.xMax; x++) {
-        const bx = x * ts;
-        // 木板面
-        mctx.fillStyle = '#A0826D';
-        mctx.fillRect(bx + 1, py + 2, ts - 2, ts - 4);
-        // 木板缝隙
-        mctx.fillStyle = '#6B4226';
-        mctx.fillRect(bx + ts - 2, py + 2, 2, ts - 4);
-        // 木纹
-        mctx.strokeStyle = '#8B6B4A';
-        mctx.lineWidth = 1;
-        mctx.beginPath();
-        mctx.moveTo(bx + 3, py + 8);
-        mctx.lineTo(bx + ts - 3, py + 8);
-        mctx.moveTo(bx + 3, py + 20);
-        mctx.lineTo(bx + ts - 3, py + 20);
-        mctx.stroke();
-      }
-
-      // 桥栏杆（上下两侧）
-      mctx.fillStyle = '#5C3317';
-      mctx.fillRect(pxStart, py - 2, bridgeW, 3);           // 上栏杆
-      mctx.fillRect(pxStart, py + ts - 1, bridgeW, 3);       // 下栏杆
-      // 栏杆柱（每隔 2 个 tile 一根）
-      for (let x = bridge.xMin; x <= bridge.xMax + 1; x += 2) {
-        mctx.fillRect(x * ts - 1, py - 5, 3, 5);             // 上栏杆柱
-        mctx.fillRect(x * ts - 1, py + ts, 3, 5);            // 下栏杆柱
-      }
-    };
-    drawBridge(BRIDGE);
-    drawBridge(BRIDGE2);
   }
 
   start() {
@@ -740,7 +700,7 @@ class AITown {
       const mapPxW = this.mapCols * ts, mapPxH = this.mapRows * ts;
       scale = Math.max(w / mapPxW, h / mapPxH);
       const drawW = mapPxW * scale, drawH = mapPxH * scale;
-      offX = (w - drawW) / 2; offY = (h - drawH) / 2;
+      offX = (w - drawW) / 2 + this.panX; offY = (h - drawH) / 2 + this.panY;
       ctx.save();
       ctx.globalAlpha = this.bgOpacity;
       ctx.imageSmoothingEnabled = false;
@@ -748,11 +708,14 @@ class AITown {
       ctx.restore();
     } else {
       ctx.fillStyle = '#2d4a2b'; ctx.fillRect(0, 0, w, h);
-      scale = w / (this.mapCols * ts); offX = 0; offY = 0;
+      scale = w / (this.mapCols * ts); offX = this.panX; offY = this.panY;
     }
     this.computeVisibleBounds(scale, offX, offY);
 
-    // 2. 萤火虫
+    // 2. 桥梁（每帧绘制，确保清晰可见）
+    this.drawBridges(scale, offX, offY);
+
+    // 3. 萤火虫
     this.particles.forEach(p => {
       const alpha = 0.3 + 0.4 * Math.sin(p.phase);
       ctx.fillStyle = `rgba(255, 230, 100, ${alpha})`;
@@ -761,14 +724,66 @@ class AITown {
       ctx.fill();
     });
 
-    // 3. 角色
+    // 4. 角色
     this.npcs.forEach(npc => this.drawNpc(npc, scale, offX, offY));
 
-    // 4. 对话气泡
+    // 5. 对话气泡
     this.bubbles.forEach(bubble => this.drawBubble(bubble, scale, offX, offY));
 
-    // 5. UI
+    // 6. UI
     this.drawUI();
+  }
+
+  // ===== 每帧绘制桥梁（不依赖预渲染缩放，确保清晰） =====
+  drawBridges(scale, offX, offY) {
+    const ctx = this.ctx, ts = this.tileDim;
+    const drawBridge = (bridge) => {
+      const by = bridge.y;
+      const pxStart = bridge.xMin * ts * scale + offX;
+      const pxEnd = (bridge.xMax + 1) * ts * scale + offX;
+      const py = by * ts * scale + offY;
+      const py2 = (by + 1) * ts * scale + offY;
+      const bridgeW = pxEnd - pxStart;
+      const bridgeH = py2 - py;
+
+      // 桥底色（深木色）
+      ctx.fillStyle = '#6B4226';
+      ctx.fillRect(pxStart, py, bridgeW, bridgeH);
+
+      // 木板面
+      for (let x = bridge.xMin; x <= bridge.xMax; x++) {
+        const bx = x * ts * scale + offX;
+        const bw = ts * scale;
+        ctx.fillStyle = '#A0826D';
+        ctx.fillRect(bx + 1, py + 2, bw - 2, bridgeH - 4);
+        // 木板缝隙
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(bx + bw - 2, py + 2, 2, bridgeH - 4);
+        // 木纹
+        ctx.strokeStyle = '#8B6B4A';
+        ctx.lineWidth = Math.max(1, scale * 1.5);
+        ctx.beginPath();
+        ctx.moveTo(bx + 3, py + bridgeH * 0.3);
+        ctx.lineTo(bx + bw - 3, py + bridgeH * 0.3);
+        ctx.moveTo(bx + 3, py + bridgeH * 0.65);
+        ctx.lineTo(bx + bw - 3, py + bridgeH * 0.65);
+        ctx.stroke();
+      }
+
+      // 桥栏杆（上下两侧）
+      const railH = Math.max(3, bridgeH * 0.15);
+      ctx.fillStyle = '#5C3317';
+      ctx.fillRect(pxStart, py - railH, bridgeW, railH);         // 上栏杆
+      ctx.fillRect(pxStart, py2, bridgeW, railH);                 // 下栏杆
+      // 栏杆柱
+      for (let x = bridge.xMin; x <= bridge.xMax + 1; x += 2) {
+        const px = x * ts * scale + offX;
+        ctx.fillRect(px - 1.5, py - railH * 1.8, 3, railH * 1.8);
+        ctx.fillRect(px - 1.5, py2, 3, railH * 1.8);
+      }
+    };
+    drawBridge(BRIDGE);
+    drawBridge(BRIDGE2);
   }
 
   drawNpc(npc, scale, offX, offY) {
