@@ -1,5 +1,4 @@
 ﻿node_modules
-lib
 packages
 *.mjs
 test-results/
@@ -9,4 +8,3 @@ screenshot-*.png
 sketch-*.png
 um-*.png
 unlock-music-wallpaper.png
-wallpaper.png
