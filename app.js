@@ -323,7 +323,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     // 创建 AI 小镇实例
-    const aiTown = new AITown(canvas, { seed: 42, opacity: 0.6, npcScale: 1.5 });
+    const aiTown = new AITown(canvas, { seed: 42, opacity: 0.88, npcScale: 1.5 });
     aiTown.loadSprite(spriteImg);
     window.aiTown = aiTown; // 暴露到 window 便于调试
 
