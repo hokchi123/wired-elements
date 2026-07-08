@@ -455,8 +455,7 @@ class AITown {
       px >= mapOffX && px < mapOffX + mapPxW && py >= mapOffY && py < mapOffY + mapPxH;
 
     // ===== 1. 扩展区：纯色草地底 + 微妙色斑 =====
-    // 不用 tileset 贴图，避免歪七扭八
-    const greens = ['#2d4a2b', '#335033', '#2a4628', '#365838', '#2e4c2c'];
+    const greens = ['#2d4a2b', '#335033', '#2a4628', '#365838', '#2e4c2c', '#314e2f', '#2b4829'];
     for (let x = 0; x < extCols; x++) {
       for (let y = 0; y < extRows; y++) {
         const px = x * ts, py = y * ts;
@@ -466,84 +465,207 @@ class AITown {
       }
     }
 
-    // ===== 2. 扩展区：矢量装饰（树、池塘、花、路） =====
-    // 2a. 树（圆形树冠 + 树干）
-    for (let i = 0; i < 200; i++) {
+    // ===== 2. 扩展区：丰富的矢量场景 =====
+    // 2a. 大树林簇（密集树群，形成森林）
+    for (let i = 0; i < 45; i++) {
+      const ccx = extRng() * extPxW;
+      const ccy = extRng() * extPxH;
+      const clusterR = 100 + extRng() * 150;
+      const treeCount = 20 + Math.floor(extRng() * 30);
+      for (let j = 0; j < treeCount; j++) {
+        const angle = extRng() * Math.PI * 2;
+        const dist = extRng() * clusterR;
+        const cx = ccx + Math.cos(angle) * dist;
+        const cy = ccy + Math.sin(angle) * dist;
+        if (isInOriginal(cx, cy)) continue;
+        const r = 20 + extRng() * 25;
+        // 阴影
+        mctx.fillStyle = 'rgba(0,0,0,0.25)';
+        mctx.beginPath();
+        mctx.ellipse(cx + 3, cy + r * 0.6, r * 0.9, r * 0.4, 0, 0, Math.PI * 2);
+        mctx.fill();
+        // 树冠
+        mctx.fillStyle = ['#1a3a1a', '#234423', '#1e3e1e', '#284a28'][Math.floor(extRng() * 4)];
+        mctx.beginPath();
+        mctx.arc(cx, cy, r, 0, Math.PI * 2);
+        mctx.fill();
+        // 高光
+        mctx.fillStyle = 'rgba(90,150,70,0.45)';
+        mctx.beginPath();
+        mctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.5, 0, Math.PI * 2);
+        mctx.fill();
+      }
+    }
+
+    // 2b. 散落单棵树
+    for (let i = 0; i < 500; i++) {
       const cx = extRng() * extPxW;
       const cy = extRng() * extPxH;
       if (isInOriginal(cx, cy)) continue;
-      const r = 8 + extRng() * 10;
-      // 树冠
+      const r = 15 + extRng() * 15;
+      mctx.fillStyle = 'rgba(0,0,0,0.2)';
+      mctx.beginPath();
+      mctx.ellipse(cx + 3, cy + r * 0.5, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
+      mctx.fill();
       mctx.fillStyle = ['#1a3a1a', '#234423', '#1e3e1e'][Math.floor(extRng() * 3)];
       mctx.beginPath();
       mctx.arc(cx, cy, r, 0, Math.PI * 2);
       mctx.fill();
-      // 高光
       mctx.fillStyle = 'rgba(80,140,60,0.4)';
       mctx.beginPath();
       mctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.5, 0, Math.PI * 2);
       mctx.fill();
     }
 
-    // 2b. 池塘
-    for (let i = 0; i < 20; i++) {
+    // 2c. 池塘（带石岸）
+    for (let i = 0; i < 40; i++) {
       const cx = extRng() * extPxW;
       const cy = extRng() * extPxH;
       if (isInOriginal(cx, cy)) continue;
-      const pw = 25 + extRng() * 50;
-      const ph = 20 + extRng() * 40;
-      mctx.fillStyle = '#2a4f6e';
+      const pw = 60 + extRng() * 100;
+      const ph = 50 + extRng() * 80;
+      // 石岸
+      mctx.fillStyle = '#6a6a5a';
       mctx.beginPath();
-      mctx.ellipse(cx, cy, pw, ph, extRng() * Math.PI, 0, Math.PI * 2);
+      mctx.ellipse(cx, cy, pw + 8, ph + 8, extRng() * Math.PI, 0, Math.PI * 2);
       mctx.fill();
-      mctx.fillStyle = '#3a6b8a';
+      // 水面
+      mctx.fillStyle = '#1e4860';
       mctx.beginPath();
-      mctx.ellipse(cx, cy, pw * 0.8, ph * 0.8, 0, 0, Math.PI * 2);
+      mctx.ellipse(cx, cy, pw, ph, 0, 0, Math.PI * 2);
+      mctx.fill();
+      mctx.fillStyle = '#2a6888';
+      mctx.beginPath();
+      mctx.ellipse(cx, cy, pw * 0.75, ph * 0.75, 0, 0, Math.PI * 2);
+      mctx.fill();
+      // 水面反光
+      mctx.fillStyle = 'rgba(120,180,220,0.35)';
+      mctx.beginPath();
+      mctx.ellipse(cx - pw * 0.2, cy - ph * 0.2, pw * 0.3, ph * 0.15, 0, 0, Math.PI * 2);
       mctx.fill();
     }
 
-    // 2c. 小路
-    mctx.strokeStyle = '#8B7355';
-    mctx.lineWidth = 8;
+    // 2d. 小路（蜿蜒向外延伸）
     mctx.lineCap = 'round';
     const paths = [
-      [mapOffX, mapOffY + mapPxH * 0.3, mapOffX - 400, mapOffY + mapPxH * 0.3 - 100],
-      [mapOffX + mapPxW, mapOffY + mapPxH * 0.5, mapOffX + mapPxW + 500, mapOffY + mapPxH * 0.5 + 150],
-      [mapOffX + mapPxW * 0.3, mapOffY, mapOffX + mapPxW * 0.3 - 200, mapOffY - 400],
-      [mapOffX + mapPxW * 0.7, mapOffY + mapPxH, mapOffX + mapPxW * 0.7 + 300, mapOffY + mapPxH + 400],
+      [mapOffX, mapOffY + mapPxH * 0.3, mapOffX - 500, mapOffY + mapPxH * 0.3 - 150],
+      [mapOffX + mapPxW, mapOffY + mapPxH * 0.5, mapOffX + mapPxW + 600, mapOffY + mapPxH * 0.5 + 200],
+      [mapOffX + mapPxW * 0.3, mapOffY, mapOffX + mapPxW * 0.3 - 250, mapOffY - 500],
+      [mapOffX + mapPxW * 0.7, mapOffY + mapPxH, mapOffX + mapPxW * 0.7 + 350, mapOffY + mapPxH + 500],
+      [mapOffX + mapPxW * 0.5, mapOffY + mapPxH, mapOffX + mapPxW * 0.5 - 100, mapOffY + mapPxH + 600],
+      [mapOffX, mapOffY + mapPxH * 0.7, mapOffX - 450, mapOffY + mapPxH * 0.7 + 200],
     ];
     for (const [x1, y1, x2, y2] of paths) {
-      const mx = (x1 + x2) / 2 + (extRng() - 0.5) * 200;
-      const my = (y1 + y2) / 2 + (extRng() - 0.5) * 200;
+      // 路面深色
+      mctx.strokeStyle = '#6B5A42';
+      mctx.lineWidth = 20;
+      const mx = (x1 + x2) / 2 + (extRng() - 0.5) * 250;
+      const my = (y1 + y2) / 2 + (extRng() - 0.5) * 250;
       mctx.beginPath();
       mctx.moveTo(x1, y1);
       mctx.quadraticCurveTo(mx, my, x2, y2);
       mctx.stroke();
-      mctx.strokeStyle = '#A0826D';
-      mctx.lineWidth = 5;
+      // 路面亮色
+      mctx.strokeStyle = '#9B8268';
+      mctx.lineWidth = 12;
       mctx.stroke();
-      mctx.strokeStyle = '#8B7355';
-      mctx.lineWidth = 8;
     }
 
-    // 2d. 灌木和小花
-    for (let i = 0; i < 500; i++) {
-      const x = extRng() * extPxW;
-      const y = extRng() * extPxH;
-      if (isInOriginal(x, y)) continue;
-      mctx.fillStyle = ['#4a7a2a', '#5a8a3a', '#3a6a1a'][Math.floor(extRng() * 3)];
+    // 2e. 麦田（金黄色矩形区域）
+    for (let i = 0; i < 20; i++) {
+      const cx = extRng() * extPxW;
+      const cy = extRng() * extPxH;
+      if (isInOriginal(cx, cy)) continue;
+      const fw = 120 + extRng() * 180;
+      const fh = 80 + extRng() * 120;
+      mctx.fillStyle = '#B8860B';
+      mctx.fillRect(cx, cy, fw, fh);
+      // 麦穗纹理
+      mctx.fillStyle = '#DAA520';
+      for (let mx = cx + 6; mx < cx + fw - 6; mx += 10) {
+        for (let my = cy + 6; my < cy + fh - 6; my += 10) {
+          mctx.fillRect(mx, my, 3, 6);
+        }
+      }
+      // 麦田边框
+      mctx.strokeStyle = '#8B6914';
+      mctx.lineWidth = 3;
+      mctx.strokeRect(cx, cy, fw, fh);
+    }
+
+    // 2f. 石头和岩石
+    for (let i = 0; i < 250; i++) {
+      const cx = extRng() * extPxW;
+      const cy = extRng() * extPxH;
+      if (isInOriginal(cx, cy)) continue;
+      const r = 8 + extRng() * 16;
+      mctx.fillStyle = '#5a5a5a';
       mctx.beginPath();
-      mctx.arc(x, y, 2 + extRng() * 3, 0, Math.PI * 2);
+      mctx.ellipse(cx, cy, r, r * 0.7, 0, 0, Math.PI * 2);
+      mctx.fill();
+      mctx.fillStyle = '#7a7a7a';
+      mctx.beginPath();
+      mctx.ellipse(cx - r * 0.2, cy - r * 0.2, r * 0.6, r * 0.4, 0, 0, Math.PI * 2);
       mctx.fill();
     }
-    for (let i = 0; i < 150; i++) {
+
+    // 2g. 花田（密集花丛）
+    for (let i = 0; i < 40; i++) {
+      const fx = extRng() * extPxW;
+      const fy = extRng() * extPxH;
+      if (isInOriginal(fx, fy)) continue;
+      const fr = 50 + extRng() * 80;
+      const flowerColor = ['#FFD700', '#FF69B4', '#FF6347', '#9370DB', '#FFA500'][Math.floor(extRng() * 5)];
+      for (let j = 0; j < 30; j++) {
+        const px = fx + (extRng() - 0.5) * fr * 2;
+        const py = fy + (extRng() - 0.5) * fr * 2;
+        if (isInOriginal(px, py)) continue;
+        mctx.fillStyle = flowerColor;
+        mctx.beginPath();
+        mctx.arc(px, py, 4 + extRng() * 4, 0, Math.PI * 2);
+        mctx.fill();
+        // 花心
+        mctx.fillStyle = '#FFFF00';
+        mctx.beginPath();
+        mctx.arc(px, py, 2, 0, Math.PI * 2);
+        mctx.fill();
+      }
+    }
+
+    // 2h. 灌木丛
+    for (let i = 0; i < 700; i++) {
       const x = extRng() * extPxW;
       const y = extRng() * extPxH;
       if (isInOriginal(x, y)) continue;
-      mctx.fillStyle = ['#FFD700', '#FF69B4', '#FF6347', '#9370DB'][Math.floor(extRng() * 4)];
+      mctx.fillStyle = ['#4a7a2a', '#5a8a3a', '#3a6a1a', '#456a25'][Math.floor(extRng() * 4)];
       mctx.beginPath();
-      mctx.arc(x, y, 1.5 + extRng() * 1.5, 0, Math.PI * 2);
+      mctx.arc(x, y, 6 + extRng() * 8, 0, Math.PI * 2);
       mctx.fill();
+    }
+
+    // 2i. 木栅栏（分隔区域）
+    mctx.strokeStyle = '#8B6B4A';
+    mctx.lineWidth = 5;
+    for (let i = 0; i < 15; i++) {
+      const fx = extRng() * extPxW;
+      const fy = extRng() * extPxH;
+      if (isInOriginal(fx, fy)) continue;
+      const fLen = 150 + extRng() * 200;
+      const fAng = extRng() * Math.PI;
+      const ex = fx + Math.cos(fAng) * fLen;
+      const ey = fy + Math.sin(fAng) * fLen;
+      if (isInOriginal(ex, ey)) continue;
+      mctx.beginPath();
+      mctx.moveTo(fx, fy);
+      mctx.lineTo(ex, ey);
+      mctx.stroke();
+      // 栅栏柱
+      for (let t = 0.1; t < 1; t += 0.15) {
+        const px = fx + (ex - fx) * t;
+        const py = fy + (ey - fy) * t;
+        mctx.fillStyle = '#6B4226';
+        mctx.fillRect(px - 3, py - 10, 6, 20);
+      }
     }
 
     // ===== 3. 渲染原始地图在中心 =====
@@ -583,24 +705,30 @@ class AITown {
       }
     }
 
-    // ===== 4. 在桥位置画水色底（确保桥看起来在水上） =====
-    // 因为水体 tile 962 中心像素是绿色（水边过渡 tile），
-    // 需要覆盖一层水色让桥视觉上在水上
-    const paintWaterUnder = (bridge) => {
-      // 覆盖 y-1 到 y+1 的范围，确保水面连续
-      for (let y = bridge.y - 1; y <= bridge.y + 1; y++) {
-        for (let x = bridge.xMin - 1; x <= bridge.xMax + 1; x++) {
-          if (x < 0 || x >= this.mapCols || y < 0 || y >= this.mapRows) continue;
-          mctx.fillStyle = '#1a3e54';
-          mctx.fillRect(mapOffX + x * ts, mapOffY + y * ts, ts, ts);
-          // 水面高光
-          mctx.fillStyle = 'rgba(40,90,120,0.5)';
-          mctx.fillRect(mapOffX + x * ts + 4, mapOffY + y * ts + 4, ts - 8, ts - 8);
+    // ===== 4. 在所有水体 tile 上覆盖蓝色水面（让河流清晰可见） =====
+    // 水体 tile 962 等的中心像素是绿色（水边过渡），不覆盖则看不出是河
+    for (let x = 0; x < this.mapCols; x++) {
+      for (let y = 0; y < this.mapRows; y++) {
+        let isWater = false;
+        for (const layer of this.bgTiles) {
+          if (WATER_TILES.has(layer[x]?.[y])) { isWater = true; break; }
         }
+        if (!isWater) continue;
+        // 深水底色
+        mctx.fillStyle = '#1a3e54';
+        mctx.fillRect(mapOffX + x * ts, mapOffY + y * ts, ts, ts);
+        // 浅水高光
+        mctx.fillStyle = 'rgba(40,90,120,0.45)';
+        mctx.fillRect(mapOffX + x * ts + 3, mapOffY + y * ts + 3, ts - 6, ts - 6);
+        // 水面波纹
+        mctx.strokeStyle = 'rgba(80,140,170,0.3)';
+        mctx.lineWidth = 1;
+        mctx.beginPath();
+        mctx.moveTo(mapOffX + x * ts + 6, mapOffY + y * ts + ts * 0.4);
+        mctx.lineTo(mapOffX + x * ts + ts - 6, mapOffY + y * ts + ts * 0.4);
+        mctx.stroke();
       }
-    };
-    paintWaterUnder(BRIDGE);
-    paintWaterUnder(BRIDGE2);
+    }
   }
 
   start() {
